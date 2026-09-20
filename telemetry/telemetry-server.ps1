@@ -39,7 +39,15 @@ function Connect-Screeps {
     }
     $Base = ([string]$Config.serverUrl).TrimEnd("/")
     $Body = @{ email = $Username; password = $Password } | ConvertTo-Json -Compress
-    $Response = Invoke-RestMethod -Method Post -Uri "$Base/api/auth/signin" -ContentType "application/json" -Body $Body -TimeoutSec 20
+    try {
+        $Response = Invoke-RestMethod -Method Post -Uri "$Base/api/auth/signin" -ContentType "application/json" -Body $Body -TimeoutSec 20
+    } catch {
+        $Status = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+        if ($Status -eq 401) {
+            throw "Login rejeitado pelo NewbieLand. Confirme o username exato e conclua /authmod/password/ ate aparecer 'Password set!'"
+        }
+        throw
+    }
     if (-not $Response.token) { throw "Login no NewbieLand nao retornou um token de sessao" }
     $script:RuntimeToken = [string]$Response.token
     Write-Host "Autenticado no NewbieLand como $Username" -ForegroundColor Green
