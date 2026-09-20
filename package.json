@@ -1,0 +1,10 @@
+{
+  "name": "countscreeps",
+  "version": "3.2.0",
+  "description": "Colony OS - Screeps AI bot",
+  "private": true,
+  "scripts": {
+    "deploy": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1",
+    "push": "npm run deploy"
+  }
+}
