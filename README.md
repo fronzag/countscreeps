@@ -63,3 +63,12 @@ git push -u origin main
 A versao 4 publica um snapshot enxuto em `Memory.telemetry` a cada cinco ticks.
 O objeto inclui CPU, bucket, RCL, energia, populacao, fontes, obras, hostis e o
 estado do spawn para leitura pela API do Screeps.
+
+### Painel local
+
+1. Execute `powershell -ExecutionPolicy Bypass -File telemetry/start.ps1`.
+2. Na primeira execucao, edite `telemetry/config.local.json` e informe o token.
+3. Execute novamente e abra `http://localhost:8080`.
+
+O painel consulta a API a cada 60 segundos e grava o historico local em
+`telemetry/data/history.ndjson`. Token e dados coletados nao entram no Git.

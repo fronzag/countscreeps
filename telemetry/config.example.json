@@ -1,0 +1,8 @@
+{
+  "serverUrl": "http://screeps.newbieland.net:21025",
+  "token": "COLE_SEU_TOKEN_AQUI",
+  "serverPassword": "",
+  "intervalSeconds": 60,
+  "port": 8080,
+  "historyLimit": 10080
+}
