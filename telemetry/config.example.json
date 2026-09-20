@@ -1,6 +1,8 @@
 {
   "serverUrl": "http://screeps.newbieland.net:21025",
-  "token": "COLE_SEU_TOKEN_AQUI",
+  "token": "",
+  "username": "SEU_USUARIO_NO_NEWBIELAND",
+  "password": "SUA_SENHA_DO_NEWBIELAND",
   "serverPassword": "",
   "intervalSeconds": 60,
   "port": 8080,

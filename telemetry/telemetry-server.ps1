@@ -13,6 +13,9 @@ $DashboardPath = Join-Path $Root "dashboard.html"
 $IntervalSeconds = [Math]::Max(10, [int]$Config.intervalSeconds)
 $HistoryLimit = [Math]::Max(100, [int]$Config.historyLimit)
 $Prefix = "http://localhost:$($Config.port)/"
+$Username = if ($env:SCREEPS_USERNAME) { $env:SCREEPS_USERNAME } else { [string]$Config.username }
+$Password = if ($env:SCREEPS_PASSWORD) { $env:SCREEPS_PASSWORD } else { [string]$Config.password }
+$script:RuntimeToken = if ($Config.token -and $Config.token -ne "COLE_SEU_TOKEN_AQUI") { [string]$Config.token } else { "" }
 
 New-Item -ItemType Directory -Path $DataDir -Force | Out-Null
 
@@ -30,16 +33,38 @@ function Expand-ScreepsData([object]$Data) {
     return $Text | ConvertFrom-Json
 }
 
-function Collect-Telemetry {
-    $Base = ([string]$Config.serverUrl).TrimEnd("/")
-    $Headers = @{}
-    if ($Config.token -and $Config.token -ne "COLE_SEU_TOKEN_AQUI") {
-        $Headers["X-Token"] = [string]$Config.token
-        $Headers["X-Username"] = [string]$Config.token
+function Connect-Screeps {
+    if (-not $Username -or -not $Password -or $Username -eq "SEU_USUARIO_NO_NEWBIELAND") {
+        throw "Token rejeitado e usuario/senha do NewbieLand nao foram configurados"
     }
-    if ($Config.serverPassword) { $Headers["X-Server-Password"] = [string]$Config.serverPassword }
+    $Base = ([string]$Config.serverUrl).TrimEnd("/")
+    $Body = @{ email = $Username; password = $Password } | ConvertTo-Json -Compress
+    $Response = Invoke-RestMethod -Method Post -Uri "$Base/api/auth/signin" -ContentType "application/json" -Body $Body -TimeoutSec 20
+    if (-not $Response.token) { throw "Login no NewbieLand nao retornou um token de sessao" }
+    $script:RuntimeToken = [string]$Response.token
+    Write-Host "Autenticado no NewbieLand como $Username" -ForegroundColor Green
+}
 
-    $Response = Invoke-RestMethod -Method Get -Uri "$Base/api/user/memory?path=telemetry" -Headers $Headers -TimeoutSec 20
+function Read-ScreepsMemory {
+    $Base = ([string]$Config.serverUrl).TrimEnd("/")
+    if (-not $script:RuntimeToken) { Connect-Screeps }
+    $Headers = @{ "X-Token" = $script:RuntimeToken; "X-Username" = $script:RuntimeToken }
+    if ($Config.serverPassword) { $Headers["X-Server-Password"] = [string]$Config.serverPassword }
+    try {
+        return Invoke-RestMethod -Method Get -Uri "$Base/api/user/memory?path=telemetry" -Headers $Headers -TimeoutSec 20
+    } catch {
+        $Status = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+        if ($Status -ne 401 -or -not $Username -or -not $Password) { throw }
+        $script:RuntimeToken = ""
+        Connect-Screeps
+        $Headers["X-Token"] = $script:RuntimeToken
+        $Headers["X-Username"] = $script:RuntimeToken
+        return Invoke-RestMethod -Method Get -Uri "$Base/api/user/memory?path=telemetry" -Headers $Headers -TimeoutSec 20
+    }
+}
+
+function Collect-Telemetry {
+    $Response = Read-ScreepsMemory
     if ($Response.ok -eq 0) { throw "API retornou ok=0" }
     $Sample = Expand-ScreepsData $Response.data
     if ($null -eq $Sample) { throw "Memory.telemetry ainda nao esta disponivel" }
