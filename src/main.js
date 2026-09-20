@@ -1,16 +1,3 @@
-// ============================================================
-// SCREEPS - COLONY OS v3.2
-// SINGLE ROOM - ESTÁVEL
-//
-// Objetivo:
-// - Operar somente a nossa room
-// - Não navegar entre rooms
-// - Harvesters mantêm energia
-// - Upgraders evoluem Controller
-// - Builders constroem
-// - Planejamento automático a partir do RCL 2
-// ============================================================
-
 const CONFIG = require("config");
 const { cleanMemory } = require("memory");
 const { planRoom } = require("planner");
@@ -18,151 +5,46 @@ const { runSpawnManager } = require("spawnManager");
 const { runHarvester } = require("roles/harvester");
 const { runUpgrader } = require("roles/upgrader");
 const { runBuilder } = require("roles/builder");
-const { printStatus } = require("status");
-
-// ============================================================
-// MAIN
-// ============================================================
+const { runTowers } = require("towerManager");
+const { rescueBorderCreeps } = require("movement");
+const { recordTelemetry, printStatus } = require("status");
 
 module.exports.loop = function () {
-
     cleanMemory();
 
-    const spawn =
-        Game.spawns["Spawn1"];
+    const room = Game.rooms[CONFIG.roomName];
+    const spawn = Game.spawns[CONFIG.spawnName];
 
-
-    if (!spawn) {
-
-        console.log(
-            "[ERROR] Spawn1 não encontrado."
-        );
-
+    if (!room || !spawn) {
+        console.log(`[ERROR] Room ${CONFIG.roomName} ou spawn ${CONFIG.spawnName} nao encontrado.`);
         return;
     }
 
-
-    const room =
-        spawn.room;
-
-
-    // Segurança:
-    // nunca operar uma room cujo controller não seja nosso.
-
-    if (
-        !room.controller ||
-        !room.controller.my
-    ) {
-
-        console.log(
-            `[ERROR] Controller de ${room.name} não pertence a nós.`
-        );
-
+    if (!room.controller || !room.controller.my || spawn.room.name !== room.name) {
+        console.log(`[ERROR] A room ${CONFIG.roomName} nao esta sob nosso controle.`);
         return;
     }
 
+    rescueBorderCreeps(room);
+    runTowers(room);
 
-    // --------------------------------------------------------
-    // PLANNER
-    // --------------------------------------------------------
-
-    if (
-        Game.time %
-        CONFIG.plannerInterval ===
-        0
-    ) {
-
-        planRoom(
-            room,
-            spawn
-        );
+    if (Game.time % CONFIG.plannerInterval === 0) {
+        planRoom(room, spawn);
     }
 
+    runSpawnManager(spawn, room);
 
-    // --------------------------------------------------------
-    // SPAWN
-    // --------------------------------------------------------
+    for (const creep of room.find(FIND_MY_CREEPS)) {
+        if (creep.memory.borderRescue === Game.time) continue;
 
-    runSpawnManager(
-        spawn,
-        room
-    );
-
-
-    // --------------------------------------------------------
-    // CREEPS
-    //
-    // IMPORTANTE:
-    // Só controlamos creeps que estão NA NOSSA ROOM.
-    //
-    // Nenhum código aqui manda creep para outra room.
-    // --------------------------------------------------------
-
-    for (
-        const name in Game.creeps
-    ) {
-
-        const creep =
-            Game.creeps[name];
-
-
-        if (
-            creep.room.name !==
-            room.name
-        ) {
-
-            continue;
-        }
-
-
-        switch (
-            creep.memory.role
-        ) {
-
-            case "harvester":
-
-                runHarvester(
-                    creep,
-                    room
-                );
-
-                break;
-
-
-            case "upgrader":
-
-                runUpgrader(
-                    creep,
-                    room
-                );
-
-                break;
-
-
-            case "builder":
-
-                runBuilder(
-                    creep,
-                    room
-                );
-
-                break;
+        switch (creep.memory.role) {
+            case "harvester": runHarvester(creep, room); break;
+            case "upgrader": runUpgrader(creep, room); break;
+            case "builder": runBuilder(creep, room); break;
+            default: console.log(`[WARN] ${creep.name} sem role valida.`);
         }
     }
 
-
-    // --------------------------------------------------------
-    // STATUS
-    // --------------------------------------------------------
-
-    if (
-        Game.time %
-        CONFIG.statusInterval ===
-        0
-    ) {
-
-        printStatus(
-            room
-        );
-    }
+    if (Game.time % CONFIG.telemetryInterval === 0) recordTelemetry(room, spawn);
+    if (Game.time % CONFIG.statusInterval === 0) printStatus(room);
 };

@@ -57,3 +57,9 @@ git add -A
 git commit -m "Initial commit: Colony OS v3.2 modular"
 git push -u origin main
 ```
+
+## Telemetria
+
+A versao 4 publica um snapshot enxuto em `Memory.telemetry` a cada cinco ticks.
+O objeto inclui CPU, bucket, RCL, energia, populacao, fontes, obras, hostis e o
+estado do spawn para leitura pela API do Screeps.

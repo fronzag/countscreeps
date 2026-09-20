@@ -1,496 +1,65 @@
-// ============================================================
-// ROOM PLANNER
-// ============================================================
+const CONFIG = require("config");
 
-function planRoom(
-    room,
-    spawn
-) {
+function planRoom(room, spawn) {
+    const rcl = room.controller.level;
+    if (rcl < 2) return;
+    let allowance = CONFIG.maxConstructionSites - room.find(FIND_MY_CONSTRUCTION_SITES).length;
+    if (allowance <= 0) return;
 
-    const rcl =
-        room.controller.level;
-
-
-    // --------------------------------------------------------
-    // RCL 1
-    //
-    // NÃO CONSTRUÍMOS NADA.
-    //
-    // Só:
-    // source -> spawn -> controller
-    // --------------------------------------------------------
-
-    if (
-        rcl < 2
-    ) {
-
-        return;
+    allowance = planNearSpawn(room, spawn, STRUCTURE_EXTENSION,
+        CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][rcl] || 0, allowance);
+    if (rcl >= 3 && allowance > 0) {
+        allowance = planNearSpawn(room, spawn, STRUCTURE_TOWER,
+            CONTROLLER_STRUCTURES[STRUCTURE_TOWER][rcl] || 0, allowance);
     }
-
-
-    // --------------------------------------------------------
-    // RCL 2
-    // --------------------------------------------------------
-
-    planExtensions(
-        room,
-        spawn,
-        5
-    );
-
-
-    planRoads(
-        room,
-        spawn
-    );
-
-
-    // --------------------------------------------------------
-    // RCL 3
-    // --------------------------------------------------------
-
-    if (
-        rcl >= 3
-    ) {
-
-        planExtensions(
-            room,
-            spawn,
-            10
-        );
-
-
-        planTower(
-            room,
-            spawn
-        );
-    }
+    if (allowance > 0) planRoads(room, spawn, allowance);
 }
 
-
-function planExtensions(
-    room,
-    spawn,
-    desired
-) {
-
-    const existing =
-        room.find(
-
-            FIND_MY_STRUCTURES,
-
-            {
-                filter:
-                    structure =>
-                        structure.structureType ===
-                        STRUCTURE_EXTENSION
-            }
-
-        ).length;
-
-
-    const sites =
-        room.find(
-
-            FIND_MY_CONSTRUCTION_SITES,
-
-            {
-                filter:
-                    site =>
-                        site.structureType ===
-                        STRUCTURE_EXTENSION
-            }
-
-        ).length;
-
-
-    let missing =
-
-        desired
-        -
-        existing
-        -
-        sites;
-
-
-    if (
-        missing <= 0
-    ) {
-
-        return;
-    }
-
-
-    for (
-        let radius = 2;
-        radius <= 6;
-        radius++
-    ) {
-
-        for (
-            let dx = -radius;
-            dx <= radius;
-            dx++
-        ) {
-
-            for (
-                let dy = -radius;
-                dy <= radius;
-                dy++
-            ) {
-
-                if (
-                    missing <= 0
-                ) {
-
-                    return;
-                }
-
-
-                // Só borda do quadrado.
-
-                if (
-                    Math.abs(dx) !== radius &&
-                    Math.abs(dy) !== radius
-                ) {
-
-                    continue;
-                }
-
-
-                const x =
-                    spawn.pos.x +
-                    dx;
-
-
-                const y =
-                    spawn.pos.y +
-                    dy;
-
-
-                if (
-                    !isBuildable(
-                        room,
-                        x,
-                        y
-                    )
-                ) {
-
-                    continue;
-                }
-
-
-                const result =
-                    room.createConstructionSite(
-
-                        x,
-                        y,
-
-                        STRUCTURE_EXTENSION
-                    );
-
-
-                if (
-                    result === OK
-                ) {
-
-                    console.log(
-                        `[PLANNER] Extension ${x},${y}`
-                    );
-
-
-                    missing--;
+function planNearSpawn(room, spawn, type, desired, allowance) {
+    let missing = Math.min(desired - countType(room, type), allowance);
+    if (missing <= 0) return allowance;
+    for (let radius = 2; radius <= 7 && missing > 0; radius++) {
+        for (let dx = -radius; dx <= radius && missing > 0; dx++) {
+            for (let dy = -radius; dy <= radius && missing > 0; dy++) {
+                if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+                const x = spawn.pos.x + dx;
+                const y = spawn.pos.y + dy;
+                if (!isBuildable(room, x, y)) continue;
+                if (room.createConstructionSite(x, y, type) === OK) {
+                    missing--; allowance--;
+                    console.log(`[PLANNER] ${type} em ${x},${y}`);
                 }
             }
         }
     }
+    return allowance;
 }
 
-
-function planRoads(
-    room,
-    spawn
-) {
-
-    const targets =
-        room.find(
-            FIND_SOURCES
-        );
-
-
-    targets.push(
-        room.controller
-    );
-
-
-    for (
-        const target of targets
-    ) {
-
-        const path =
-            room.findPath(
-
-                spawn.pos,
-
-                target.pos,
-
-                {
-                    ignoreCreeps:
-                        true,
-
-                    swampCost:
-                        2
-                }
-            );
-
-
-        for (
-            let i = 0;
-            i < path.length - 1;
-            i++
-        ) {
-
-            const step =
-                path[i];
-
-
-            const structures =
-                room.lookForAt(
-
-                    LOOK_STRUCTURES,
-
-                    step.x,
-                    step.y
-                );
-
-
-            if (
-                structures.some(
-                    structure =>
-                        structure.structureType ===
-                        STRUCTURE_ROAD
-                )
-            ) {
-
-                continue;
-            }
-
-
-            const sites =
-                room.lookForAt(
-
-                    LOOK_CONSTRUCTION_SITES,
-
-                    step.x,
-                    step.y
-                );
-
-
-            if (
-                sites.length > 0
-            ) {
-
-                continue;
-            }
-
-
-            room.createConstructionSite(
-
-                step.x,
-                step.y,
-
-                STRUCTURE_ROAD
-            );
+function planRoads(room, spawn, allowance) {
+    const targets = room.find(FIND_SOURCES).concat(room.controller);
+    for (const target of targets) {
+        const path = room.findPath(spawn.pos, target.pos, { ignoreCreeps: true, swampCost: 2, maxRooms: 1 });
+        for (let i = 0; i < path.length - 1 && allowance > 0; i++) {
+            const step = path[i];
+            const hasRoad = room.lookForAt(LOOK_STRUCTURES, step.x, step.y)
+                .some(s => s.structureType === STRUCTURE_ROAD);
+            if (hasRoad || room.lookForAt(LOOK_CONSTRUCTION_SITES, step.x, step.y).length) continue;
+            if (room.createConstructionSite(step.x, step.y, STRUCTURE_ROAD) === OK) allowance--;
         }
+        if (allowance <= 0) return;
     }
 }
 
-
-function planTower(
-    room,
-    spawn
-) {
-
-    const existing =
-        room.find(
-
-            FIND_MY_STRUCTURES,
-
-            {
-                filter:
-                    structure =>
-                        structure.structureType ===
-                        STRUCTURE_TOWER
-            }
-
-        ).length;
-
-
-    const sites =
-        room.find(
-
-            FIND_MY_CONSTRUCTION_SITES,
-
-            {
-                filter:
-                    site =>
-                        site.structureType ===
-                        STRUCTURE_TOWER
-            }
-
-        ).length;
-
-
-    if (
-        existing +
-        sites >
-        0
-    ) {
-
-        return;
-    }
-
-
-    for (
-        let radius = 2;
-        radius <= 5;
-        radius++
-    ) {
-
-        for (
-            let dx = -radius;
-            dx <= radius;
-            dx++
-        ) {
-
-            for (
-                let dy = -radius;
-                dy <= radius;
-                dy++
-            ) {
-
-                const x =
-                    spawn.pos.x +
-                    dx;
-
-
-                const y =
-                    spawn.pos.y +
-                    dy;
-
-
-                if (
-                    !isBuildable(
-                        room,
-                        x,
-                        y
-                    )
-                ) {
-
-                    continue;
-                }
-
-
-                const result =
-                    room.createConstructionSite(
-
-                        x,
-                        y,
-
-                        STRUCTURE_TOWER
-                    );
-
-
-                if (
-                    result === OK
-                ) {
-
-                    console.log(
-                        `[PLANNER] Tower ${x},${y}`
-                    );
-
-
-                    return;
-                }
-            }
-        }
-    }
+function countType(room, type) {
+    return room.find(FIND_MY_STRUCTURES, { filter: s => s.structureType === type }).length +
+        room.find(FIND_MY_CONSTRUCTION_SITES, { filter: s => s.structureType === type }).length;
 }
 
-
-function isBuildable(
-    room,
-    x,
-    y
-) {
-
-    // Evita bordas.
-    // Nosso bot NÃO tem motivo para construir nelas.
-
-    if (
-        x <= 2 ||
-        x >= 47 ||
-        y <= 2 ||
-        y >= 47
-    ) {
-
-        return false;
-    }
-
-
-    const terrain =
-        room.getTerrain();
-
-
-    if (
-        terrain.get(
-            x,
-            y
-        ) ===
-        TERRAIN_MASK_WALL
-    ) {
-
-        return false;
-    }
-
-
-    const structures =
-        room.lookForAt(
-
-            LOOK_STRUCTURES,
-
-            x,
-            y
-        );
-
-
-    if (
-        structures.length > 0
-    ) {
-
-        return false;
-    }
-
-
-    const sites =
-        room.lookForAt(
-
-            LOOK_CONSTRUCTION_SITES,
-
-            x,
-            y
-        );
-
-
-    if (
-        sites.length > 0
-    ) {
-
-        return false;
-    }
-
-
-    return true;
+function isBuildable(room, x, y) {
+    if (x <= 2 || x >= 47 || y <= 2 || y >= 47) return false;
+    if (room.getTerrain().get(x, y) === TERRAIN_MASK_WALL) return false;
+    if (room.lookForAt(LOOK_STRUCTURES, x, y).length) return false;
+    return room.lookForAt(LOOK_CONSTRUCTION_SITES, x, y).length === 0;
 }
 
 module.exports = { planRoom };

@@ -1,123 +1,30 @@
-// ============================================================
-// HARVESTER
-// ============================================================
+const { getEnergy, upgradeController } = require("creepActions");
+const { safeMoveTo } = require("movement");
 
-const {
-    harvestEnergy,
-    upgradeController
-} = require("creepActions");
+function runHarvester(creep, room) {
+    if (creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0) return getEnergy(creep, room);
 
-function runHarvester(
-    creep,
-    room
-) {
-
-    // --------------------------------------------------------
-    // COLETAR
-    // --------------------------------------------------------
-
-    if (
-        creep.store.getFreeCapacity(
-            RESOURCE_ENERGY
-        ) > 0
-    ) {
-
-        harvestEnergy(
-            creep,
-            room
-        );
-
-        return;
-    }
-
-
-    // --------------------------------------------------------
-    // ENTREGAR ENERGIA
-    // --------------------------------------------------------
-
-    const targets =
-        room.find(
-
-            FIND_MY_STRUCTURES,
-
-            {
-                filter:
-                    structure =>
-
-                        (
-
-                            structure.structureType ===
-                            STRUCTURE_SPAWN
-
-                            ||
-
-                            structure.structureType ===
-                            STRUCTURE_EXTENSION
-
-                            ||
-
-                            structure.structureType ===
-                            STRUCTURE_TOWER
-
-                        )
-
-                        &&
-
-                        structure.store
-
-                        &&
-
-                        structure.store.getFreeCapacity(
-                            RESOURCE_ENERGY
-                        ) > 0
-            }
-        );
-
-
-    const target =
-        creep.pos.findClosestByPath(
-            targets
-        );
-
-
+    const targets = room.find(FIND_MY_STRUCTURES, {
+        filter: s => (s.structureType === STRUCTURE_SPAWN ||
+            s.structureType === STRUCTURE_EXTENSION ||
+            s.structureType === STRUCTURE_TOWER) &&
+            s.store && s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+    });
+    targets.sort((a, b) => structurePriority(a) - structurePriority(b));
+    const priority = targets.length ? structurePriority(targets[0]) : null;
+    const target = creep.pos.findClosestByPath(targets.filter(s => structurePriority(s) === priority));
     if (target) {
-
-        const result =
-            creep.transfer(
-
-                target,
-
-                RESOURCE_ENERGY
-            );
-
-
-        if (
-            result ===
-            ERR_NOT_IN_RANGE
-        ) {
-
-            creep.moveTo(
-                target,
-                {
-                    reusePath: 10
-                }
-            );
-        }
-
-
+        const result = creep.transfer(target, RESOURCE_ENERGY);
+        if (result === ERR_NOT_IN_RANGE) safeMoveTo(creep, target);
         return;
     }
+    upgradeController(creep, room);
+}
 
-
-    // --------------------------------------------------------
-    // Spawn cheio:
-    // energia excedente vai para Controller.
-    // --------------------------------------------------------
-
-    upgradeController(
-        creep,
-        room
-    );
+function structurePriority(structure) {
+    if (structure.structureType === STRUCTURE_SPAWN) return 1;
+    if (structure.structureType === STRUCTURE_EXTENSION) return 2;
+    return 3;
 }
 
 module.exports = { runHarvester };
