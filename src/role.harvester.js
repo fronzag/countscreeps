@@ -1,5 +1,4 @@
-const { getEnergy, upgradeController } = require("creepActions");
-const { safeMoveTo } = require("movement");
+const { getEnergy, upgradeController, transferEnergy } = require("creepActions");
 
 function runHarvester(creep, room) {
     if (creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0) return getEnergy(creep, room);
@@ -14,8 +13,7 @@ function runHarvester(creep, room) {
     const priority = targets.length ? structurePriority(targets[0]) : null;
     const target = creep.pos.findClosestByPath(targets.filter(s => structurePriority(s) === priority));
     if (target) {
-        const result = creep.transfer(target, RESOURCE_ENERGY);
-        if (result === ERR_NOT_IN_RANGE) safeMoveTo(creep, target);
+        transferEnergy(creep, target);
         return;
     }
     upgradeController(creep, room);

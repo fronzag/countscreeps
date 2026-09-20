@@ -5,6 +5,8 @@ const { runSpawnManager } = require("spawnManager");
 const { runHarvester } = require("role.harvester");
 const { runUpgrader } = require("role.upgrader");
 const { runBuilder } = require("role.builder");
+const { runMiner } = require("role.miner");
+const { runHauler } = require("role.hauler");
 const { runTowers } = require("towerManager");
 const { rescueBorderCreeps } = require("movement");
 const { recordTelemetry, printStatus } = require("status");
@@ -38,6 +40,8 @@ module.exports.loop = function () {
         if (creep.memory.borderRescue === Game.time) continue;
 
         switch (creep.memory.role) {
+            case "miner": runMiner(creep, room); break;
+            case "hauler": runHauler(creep, room); break;
             case "harvester": runHarvester(creep, room); break;
             case "upgrader": runUpgrader(creep, room); break;
             case "builder": runBuilder(creep, room); break;

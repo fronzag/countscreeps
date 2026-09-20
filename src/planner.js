@@ -6,13 +6,53 @@ function planRoom(room, spawn) {
     let allowance = CONFIG.maxConstructionSites - room.find(FIND_MY_CONSTRUCTION_SITES).length;
     if (allowance <= 0) return;
 
-    allowance = planNearSpawn(room, spawn, STRUCTURE_EXTENSION,
-        CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][rcl] || 0, allowance);
+    allowance = planSourceContainers(room, spawn, allowance);
+    if (allowance > 0) allowance = planControllerContainer(room, spawn, allowance);
+    if (allowance > 0) {
+        allowance = planNearSpawn(room, spawn, STRUCTURE_EXTENSION,
+            CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][rcl] || 0, allowance);
+    }
     if (rcl >= 3 && allowance > 0) {
         allowance = planNearSpawn(room, spawn, STRUCTURE_TOWER,
             CONTROLLER_STRUCTURES[STRUCTURE_TOWER][rcl] || 0, allowance);
     }
     if (allowance > 0) planRoads(room, spawn, allowance);
+}
+
+function planSourceContainers(room, spawn, allowance) {
+    for (const source of room.find(FIND_SOURCES)) {
+        let plan = Memory.colony.plans.sources[source.id];
+        if (!plan) {
+            const path = room.findPath(source.pos, spawn.pos, { ignoreCreeps: true, swampCost: 2, maxRooms: 1 });
+            if (!path.length) continue;
+            plan = { x: path[0].x, y: path[0].y };
+            Memory.colony.plans.sources[source.id] = plan;
+        }
+        if (!hasStructureOrSite(room, plan.x, plan.y, STRUCTURE_CONTAINER)) {
+            if (room.createConstructionSite(plan.x, plan.y, STRUCTURE_CONTAINER) === OK) {
+                allowance--;
+                console.log(`[PLANNER] container da fonte ${source.id} em ${plan.x},${plan.y}`);
+            }
+        }
+        if (allowance <= 0) return allowance;
+    }
+    return allowance;
+}
+
+function planControllerContainer(room, spawn, allowance) {
+    let plan = Memory.colony.plans.controller;
+    if (!plan) {
+        const path = room.findPath(room.controller.pos, spawn.pos, { ignoreCreeps: true, swampCost: 2, maxRooms: 1 });
+        if (path.length < 3) return allowance;
+        plan = { x: path[2].x, y: path[2].y };
+        Memory.colony.plans.controller = plan;
+    }
+    if (!hasStructureOrSite(room, plan.x, plan.y, STRUCTURE_CONTAINER) &&
+        room.createConstructionSite(plan.x, plan.y, STRUCTURE_CONTAINER) === OK) {
+        allowance--;
+        console.log(`[PLANNER] container do controller em ${plan.x},${plan.y}`);
+    }
+    return allowance;
 }
 
 function planNearSpawn(room, spawn, type, desired, allowance) {
@@ -48,6 +88,11 @@ function planRoads(room, spawn, allowance) {
         }
         if (allowance <= 0) return;
     }
+}
+
+function hasStructureOrSite(room, x, y, type) {
+    return room.lookForAt(LOOK_STRUCTURES, x, y).some(s => s.structureType === type) ||
+        room.lookForAt(LOOK_CONSTRUCTION_SITES, x, y).some(s => s.structureType === type);
 }
 
 function countType(room, type) {
