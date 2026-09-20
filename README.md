@@ -68,9 +68,9 @@ estado do spawn para leitura pela API do Screeps.
 
 1. Execute `powershell -ExecutionPolicy Bypass -File telemetry/start.ps1`.
 2. No NewbieLand, defina sua senha em `http://screeps.newbieland.net:21025/authmod/password/` usando o login Steam.
-3. Edite `telemetry/config.local.json` e informe `username` e `password` do NewbieLand.
-4. Deixe `token` vazio; o coletor obtera um token de sessao automaticamente.
-5. Execute novamente e abra `http://localhost:8080`.
+3. Execute novamente; se as credenciais nao estiverem no arquivo, o script
+   solicitara o usuario e a senha de forma interativa.
+4. Abra `http://localhost:8080`.
 
 O painel consulta a API a cada 60 segundos e grava o historico local em
 `telemetry/data/history.ndjson`. Token e dados coletados nao entram no Git.
