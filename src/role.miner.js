@@ -9,6 +9,17 @@ function runMiner(creep, room) {
         safeMoveTo(creep, position, { reusePath: 20 });
         return;
     }
+    const container = source.pos.findInRange(FIND_STRUCTURES, 1, {
+        filter: structure => structure.structureType === STRUCTURE_CONTAINER
+    })[0];
+    const droppedEnergy = source.pos.findInRange(FIND_DROPPED_RESOURCES, 2, {
+        filter: resource => resource.resourceType === RESOURCE_ENERGY
+    }).reduce((sum, resource) => sum + resource.amount, 0);
+    if (container && container.store.getFreeCapacity(RESOURCE_ENERGY) === 0 && droppedEnergy >= 500) {
+        addMetric("harvestPaused", 1);
+        creep.say("PAUSE");
+        return;
+    }
     const amount = Math.min(source.energy, creep.getActiveBodyparts(WORK) * HARVEST_POWER);
     const result = creep.harvest(source);
     if (result === OK) addMetric("harvested", amount);

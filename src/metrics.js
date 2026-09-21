@@ -8,7 +8,8 @@ function ensureMetrics() {
             withdrawn: 0,
             delivered: 0,
             built: 0,
-            upgraded: 0
+            upgraded: 0,
+            harvestPaused: 0
         };
     }
     return Memory.colony.metrics;

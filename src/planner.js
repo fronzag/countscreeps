@@ -8,9 +8,16 @@ function planRoom(room, spawn) {
         const roadSites = room.find(FIND_MY_CONSTRUCTION_SITES, {
             filter: site => site.structureType === STRUCTURE_ROAD
         }).sort((a, b) => a.progress - b.progress);
-        if (roadSites.length && roadSites[0].remove() === OK) {
-            allowance++;
-            console.log(`[PLANNER] estrada adiada para priorizar container do controller`);
+        let removed = 0;
+        while (allowance <= 0 && roadSites.length) {
+            const site = roadSites.shift();
+            if (site.remove() === OK) {
+                allowance++;
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            console.log(`[PLANNER] ${removed} estrada(s) adiada(s) para priorizar container do controller`);
         }
     }
     if (allowance <= 0) return;

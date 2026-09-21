@@ -61,7 +61,21 @@ function deliveryTarget(creep, room) {
         filter: s => (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
             s.store.getFreeCapacity(RESOURCE_ENERGY) > 0 && room.controller && s.pos.getRangeTo(room.controller) <= 4
     });
-    return creep.pos.findClosestByPath(controllerStores);
+    const controllerStore = creep.pos.findClosestByPath(controllerStores);
+    if (controllerStore) return controllerStore;
+
+    const workers = room.find(FIND_MY_CREEPS, {
+        filter: worker => worker.id !== creep.id &&
+            (worker.memory.role === "upgrader" || worker.memory.role === "builder") &&
+            worker.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+    });
+    workers.sort((a, b) => workerPriority(a) - workerPriority(b));
+    const priority = workers.length ? workerPriority(workers[0]) : null;
+    return creep.pos.findClosestByPath(workers.filter(worker => workerPriority(worker) === priority));
+}
+
+function workerPriority(worker) {
+    return worker.memory.role === "upgrader" ? 1 : 2;
 }
 
 module.exports = { runHauler };
