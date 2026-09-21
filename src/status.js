@@ -10,6 +10,10 @@ function recordTelemetry(room, spawn) {
     const hostiles = room.find(FIND_HOSTILE_CREEPS);
     const sites = room.find(FIND_MY_CONSTRUCTION_SITES);
     const containers = room.find(FIND_STRUCTURES, { filter: s => s.structureType === STRUCTURE_CONTAINER });
+    const siteCounts = countByType(sites);
+    const extensionCount = room.find(FIND_MY_STRUCTURES, {
+        filter: structure => structure.structureType === STRUCTURE_EXTENSION
+    }).length;
 
     Memory.telemetry = {
         schema: 2,
@@ -50,7 +54,15 @@ function recordTelemetry(room, spawn) {
                 y: container.pos.y,
                 energy: container.store[RESOURCE_ENERGY],
                 capacity: container.store.getCapacity(RESOURCE_ENERGY)
-            }))
+            })),
+            infrastructure: {
+                sitesByType: siteCounts,
+                extensionsBuilt: extensionCount,
+                extensionsAllowed: CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][controller.level] || 0,
+                sourceContainers: sources.filter(source => containers.some(container =>
+                    container.pos.getRangeTo(source) <= 1)).length,
+                controllerContainer: containers.some(container => container.pos.getRangeTo(controller) <= 4)
+            }
         },
         economy: ensureMetrics(),
         logistics: Memory.colony.logistics || {},
@@ -69,6 +81,12 @@ function colonyState(counts, targets, sites, hostiles) {
     if (counts.miner < targets.miner || counts.hauler < targets.hauler) return "STABILIZE";
     if (sites > 0) return "BUILD";
     return "GROW";
+}
+
+function countByType(items) {
+    const result = {};
+    for (const item of items) result[item.structureType] = (result[item.structureType] || 0) + 1;
+    return result;
 }
 
 function printStatus(room) {

@@ -3,6 +3,7 @@ const CONFIG = require("config");
 function planRoom(room, spawn) {
     const rcl = room.controller.level;
     if (rcl < 2) return;
+    trimRoadBacklog(room);
     let allowance = CONFIG.maxConstructionSites - room.find(FIND_MY_CONSTRUCTION_SITES).length;
     if (allowance <= 0 && needsControllerContainer(room)) {
         const roadSites = room.find(FIND_MY_CONSTRUCTION_SITES, {
@@ -32,7 +33,33 @@ function planRoom(room, spawn) {
         allowance = planNearSpawn(room, spawn, STRUCTURE_TOWER,
             CONTROLLER_STRUCTURES[STRUCTURE_TOWER][rcl] || 0, allowance);
     }
-    if (allowance > 0) planRoads(room, spawn, allowance);
+    if (allowance > 0 && canPlanRoads(room)) planRoads(room, spawn, allowance);
+}
+
+function trimRoadBacklog(room) {
+    const allSites = room.find(FIND_MY_CONSTRUCTION_SITES);
+    const roadSites = allSites.filter(site => site.structureType === STRUCTURE_ROAD)
+        .sort((a, b) => a.progress - b.progress);
+    let total = allSites.length;
+    while (roadSites.length > 0 &&
+        (roadSites.length > CONFIG.maxRoadSites || total > CONFIG.maxConstructionSites)) {
+        const site = roadSites.shift();
+        if (site.remove() === OK) {
+            total--;
+            console.log(`[PLANNER] estrada ${site.pos.x},${site.pos.y} removida do backlog`);
+        }
+    }
+}
+
+function canPlanRoads(room) {
+    const sites = room.find(FIND_MY_CONSTRUCTION_SITES);
+    const essential = sites.some(site => site.structureType !== STRUCTURE_ROAD &&
+        site.structureType !== STRUCTURE_WALL && site.structureType !== STRUCTURE_RAMPART);
+    if (essential) return false;
+    const dropped = room.find(FIND_DROPPED_RESOURCES, {
+        filter: resource => resource.resourceType === RESOURCE_ENERGY
+    }).reduce((sum, resource) => sum + resource.amount, 0);
+    return dropped < 500;
 }
 
 function planSourceContainers(room, spawn, allowance) {
@@ -104,6 +131,11 @@ function planNearSpawn(room, spawn, type, desired, allowance) {
 }
 
 function planRoads(room, spawn, allowance) {
+    const existingRoadSites = room.find(FIND_MY_CONSTRUCTION_SITES, {
+        filter: site => site.structureType === STRUCTURE_ROAD
+    }).length;
+    allowance = Math.min(allowance, Math.max(0, CONFIG.maxRoadSites - existingRoadSites));
+    if (allowance <= 0) return;
     const targets = room.find(FIND_SOURCES).concat(room.controller);
     for (const target of targets) {
         const path = room.findPath(spawn.pos, target.pos, { ignoreCreeps: true, swampCost: 2, maxRooms: 1 });

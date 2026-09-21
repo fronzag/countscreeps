@@ -3,7 +3,7 @@ const { safeMoveTo } = require("movement");
 const { addMetric } = require("metrics");
 
 const PRIORITY = {
-    spawn: 1, extension: 2, tower: 3, container: 4, road: 5, rampart: 6, wall: 7
+    container: 1, spawn: 2, extension: 3, tower: 4, road: 10, rampart: 11, wall: 12
 };
 
 function runBuilder(creep, room) {
