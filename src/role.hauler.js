@@ -15,15 +15,34 @@ function runHauler(creep, room) {
 
 function assignedSource(creep, room) {
     let source = creep.memory.sourceId && Game.getObjectById(creep.memory.sourceId);
-    if (source) return source;
     const sources = room.find(FIND_SOURCES).sort((a, b) => a.id.localeCompare(b.id));
+    const quotas = Memory.colony.logistics && Memory.colony.logistics.haulerTarget &&
+        Memory.colony.logistics.haulerTarget.bySource;
     const assignments = {};
     for (const item of sources) assignments[item.id] = 0;
-    for (const other of room.find(FIND_MY_CREEPS)) {
-        if (other.id !== creep.id && other.memory.role === "hauler" &&
-            assignments[other.memory.sourceId] !== undefined) assignments[other.memory.sourceId]++;
+    const haulers = room.find(FIND_MY_CREEPS, {
+        filter: other => other.memory.role === "hauler" && other.memory.sourceId
+    });
+    for (const other of haulers) {
+        if (assignments[other.memory.sourceId] !== undefined) assignments[other.memory.sourceId]++;
     }
-    sources.sort((a, b) => assignments[a.id] - assignments[b.id] || a.id.localeCompare(b.id));
+    if (source && quotas) {
+        const deficit = sources.find(item => assignments[item.id] < (quotas[item.id] || 1));
+        const currentQuota = quotas[source.id] || 1;
+        const duplicates = haulers.filter(other => other.memory.sourceId === source.id)
+            .sort((a, b) => (b.memory.born || 0) - (a.memory.born || 0) || b.name.localeCompare(a.name));
+        if (deficit && assignments[source.id] > currentQuota && duplicates[0].id === creep.id) {
+            console.log(`[LOGISTICS] ${creep.name} rebalanceado para fonte ${deficit.id}`);
+            creep.memory.sourceId = deficit.id;
+            return deficit;
+        }
+        return source;
+    }
+    sources.sort((a, b) => {
+        const quotaA = quotas && quotas[a.id] ? quotas[a.id] : 1;
+        const quotaB = quotas && quotas[b.id] ? quotas[b.id] : 1;
+        return (assignments[a.id] / quotaA) - (assignments[b.id] / quotaB) || a.id.localeCompare(b.id);
+    });
     source = sources[0];
     if (source) creep.memory.sourceId = source.id;
     return source;
