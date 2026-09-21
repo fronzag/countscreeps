@@ -4,6 +4,15 @@ function planRoom(room, spawn) {
     const rcl = room.controller.level;
     if (rcl < 2) return;
     let allowance = CONFIG.maxConstructionSites - room.find(FIND_MY_CONSTRUCTION_SITES).length;
+    if (allowance <= 0 && needsControllerContainer(room)) {
+        const roadSites = room.find(FIND_MY_CONSTRUCTION_SITES, {
+            filter: site => site.structureType === STRUCTURE_ROAD
+        }).sort((a, b) => a.progress - b.progress);
+        if (roadSites.length && roadSites[0].remove() === OK) {
+            allowance++;
+            console.log(`[PLANNER] estrada adiada para priorizar container do controller`);
+        }
+    }
     if (allowance <= 0) return;
 
     allowance = planSourceContainers(room, spawn, allowance);
@@ -53,6 +62,18 @@ function planControllerContainer(room, spawn, allowance) {
         console.log(`[PLANNER] container do controller em ${plan.x},${plan.y}`);
     }
     return allowance;
+}
+
+function needsControllerContainer(room) {
+    const controller = room.controller;
+    if (!controller) return false;
+    const nearbyBuilt = controller.pos.findInRange(FIND_STRUCTURES, 4, {
+        filter: s => s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE
+    });
+    const nearbySites = controller.pos.findInRange(FIND_MY_CONSTRUCTION_SITES, 4, {
+        filter: s => s.structureType === STRUCTURE_CONTAINER
+    });
+    return nearbyBuilt.length + nearbySites.length === 0;
 }
 
 function planNearSpawn(room, spawn, type, desired, allowance) {

@@ -12,7 +12,7 @@ module.exports = {
     plannerInterval: 25,
     telemetryInterval: 5,
     statusInterval: 25,
-    maxConstructionSites: 10,
+    maxConstructionSites: 6,
     replacementLeadTicks: 80,
     repairWallLimit: 10000
 };

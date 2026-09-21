@@ -23,13 +23,15 @@ function replacementThreshold(creep) {
 
 function targetsForRoom(room) {
     const base = CONFIG.population[room.controller.level] || CONFIG.population[4];
-    const sites = room.find(FIND_MY_CONSTRUCTION_SITES).length;
+    const sites = room.find(FIND_MY_CONSTRUCTION_SITES);
+    const criticalSites = sites.filter(site => site.structureType !== STRUCTURE_ROAD &&
+        site.structureType !== STRUCTURE_WALL && site.structureType !== STRUCTURE_RAMPART).length;
     return {
         miner: base.miner,
-        hauler: base.hauler,
+        hauler: room.controller.level >= 2 ? requiredHaulers(room) : base.hauler,
         harvester: base.harvester,
         upgrader: base.upgrader,
-        builder: sites > 0 ? base.builder : 0
+        builder: criticalSites > 0 ? base.builder : (sites.length > 0 ? 1 : 0)
     };
 }
 
@@ -57,21 +59,51 @@ function runSpawnManager(spawn, room) {
     if (room.energyAvailable < cost) return;
 
     const memory = { role, working: false, born: Game.time };
-    if (role === "miner") memory.sourceId = sourceForNewMiner(room);
+    if (role === "miner") memory.sourceId = sourceForNewWorker(room, "miner");
+    if (role === "hauler") memory.sourceId = sourceForNewWorker(room, "hauler");
     const name = `${role}-${Game.time}`;
     const result = spawn.spawnCreep(body, name, { memory });
     if (result === OK) console.log(`[SPAWN] ${name} (${cost} energy)`);
     else console.log(`[SPAWN_ERROR] ${role}: ${result}`);
 }
 
-function sourceForNewMiner(room) {
+function sourceForNewWorker(room, role) {
     const sources = room.find(FIND_SOURCES).sort((a, b) => a.id.localeCompare(b.id));
     const assigned = {};
+    for (const source of sources) assigned[source.id] = 0;
     for (const creep of room.find(FIND_MY_CREEPS)) {
-        if (creep.memory.role === "miner" && creep.memory.sourceId) assigned[creep.memory.sourceId] = true;
+        if (creep.memory.role === role && assigned[creep.memory.sourceId] !== undefined) {
+            assigned[creep.memory.sourceId]++;
+        }
     }
-    for (const source of sources) if (!assigned[source.id]) return source.id;
+    sources.sort((a, b) => assigned[a.id] - assigned[b.id] || a.id.localeCompare(b.id));
     return sources.length ? sources[0].id : null;
+}
+
+function requiredHaulers(room) {
+    if (!Memory.colony.logistics) Memory.colony.logistics = {};
+    const cache = Memory.colony.logistics.haulerTarget;
+    if (cache && cache.capacity === room.energyCapacityAvailable && Game.time - cache.tick < 1000) {
+        return cache.value;
+    }
+    const spawn = Game.spawns[CONFIG.spawnName];
+    if (!spawn) return 2;
+    const body = getBody("hauler", room.energyCapacityAvailable, false);
+    const carryCapacity = body.filter(part => part === CARRY).length * CARRY_CAPACITY;
+    let required = 0;
+    for (const source of room.find(FIND_SOURCES)) {
+        const distance = room.findPath(source.pos, spawn.pos, {
+            ignoreCreeps: true, swampCost: 2, maxRooms: 1
+        }).length;
+        required += Math.max(1, Math.ceil((distance * 2 * SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME) / carryCapacity));
+    }
+    const value = Math.min(6, required);
+    Memory.colony.logistics.haulerTarget = {
+        capacity: room.energyCapacityAvailable,
+        tick: Game.time,
+        value
+    };
+    return value;
 }
 
 function getBody(role, budget, emergency) {

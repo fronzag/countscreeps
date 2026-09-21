@@ -29,6 +29,9 @@ function recordTelemetry(room, spawn) {
             targets,
             constructionSites: sites.length,
             hostiles: hostiles.length,
+            droppedEnergy: room.find(FIND_DROPPED_RESOURCES, {
+                filter: resource => resource.resourceType === RESOURCE_ENERGY
+            }).reduce((sum, resource) => sum + resource.amount, 0),
             ttl: {
                 minimum: creeps.length ? Math.min.apply(null, creeps.map(c => c.ticksToLive || CREEP_LIFE_TIME)) : 0,
                 average: creeps.length ? round(creeps.reduce((sum, c) => sum + (c.ticksToLive || 0), 0) / creeps.length) : 0
@@ -37,7 +40,9 @@ function recordTelemetry(room, spawn) {
                 id: source.id,
                 energy: source.energy,
                 ticksToRegeneration: source.ticksToRegeneration,
-                containerEnergy: containerEnergyNear(source, containers)
+                containerEnergy: containerEnergyNear(source, containers),
+                miners: creeps.filter(creep => creep.memory.role === "miner" && creep.memory.sourceId === source.id).length,
+                haulers: creeps.filter(creep => creep.memory.role === "hauler" && creep.memory.sourceId === source.id).length
             })),
             containers: containers.map(container => ({
                 id: container.id,
@@ -48,6 +53,7 @@ function recordTelemetry(room, spawn) {
             }))
         },
         economy: ensureMetrics(),
+        logistics: Memory.colony.logistics || {},
         spawn: { name: spawn.name, spawning: spawn.spawning ? spawn.spawning.name : null }
     };
 }
