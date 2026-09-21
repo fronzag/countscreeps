@@ -2,7 +2,7 @@ const { safeMoveTo } = require("movement");
 const { addMetric } = require("metrics");
 
 function runMiner(creep, room) {
-    const source = Game.getObjectById(creep.memory.sourceId);
+    const source = balancedSource(creep, room);
     if (!source) return;
     const position = miningPosition(room, source);
     if (!creep.pos.isEqualTo(position)) {
@@ -23,6 +23,27 @@ function runMiner(creep, room) {
     const amount = Math.min(source.energy, creep.getActiveBodyparts(WORK) * HARVEST_POWER);
     const result = creep.harvest(source);
     if (result === OK) addMetric("harvested", amount);
+}
+
+function balancedSource(creep, room) {
+    const sources = room.find(FIND_SOURCES).sort((a, b) => a.id.localeCompare(b.id));
+    const miners = room.find(FIND_MY_CREEPS, {
+        filter: other => other.memory.role === "miner" && other.memory.sourceId
+    });
+    const counts = {};
+    for (const source of sources) counts[source.id] = 0;
+    for (const miner of miners) {
+        if (counts[miner.memory.sourceId] !== undefined) counts[miner.memory.sourceId]++;
+    }
+    const missing = sources.find(source => counts[source.id] === 0);
+    const duplicates = miners.filter(miner => miner.memory.sourceId === creep.memory.sourceId)
+        .sort((a, b) => (b.memory.born || 0) - (a.memory.born || 0) || b.name.localeCompare(a.name));
+    if (missing && duplicates.length > 1 && duplicates[0].id === creep.id) {
+        console.log(`[LOGISTICS] ${creep.name} rebalanceado para fonte ${missing.id}`);
+        creep.memory.sourceId = missing.id;
+        return missing;
+    }
+    return creep.memory.sourceId ? Game.getObjectById(creep.memory.sourceId) : null;
 }
 
 function miningPosition(room, source) {

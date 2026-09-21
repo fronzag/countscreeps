@@ -72,18 +72,25 @@ function sourceForNewWorker(room, role) {
     const assigned = {};
     for (const source of sources) assigned[source.id] = 0;
     for (const creep of room.find(FIND_MY_CREEPS)) {
+        if (creep.ticksToLive !== undefined && creep.ticksToLive <= replacementThreshold(creep)) continue;
         if (creep.memory.role === role && assigned[creep.memory.sourceId] !== undefined) {
             assigned[creep.memory.sourceId]++;
         }
     }
-    sources.sort((a, b) => assigned[a.id] - assigned[b.id] || a.id.localeCompare(b.id));
+    const quotas = role === "hauler" && Memory.colony.logistics.haulerTarget &&
+        Memory.colony.logistics.haulerTarget.bySource;
+    sources.sort((a, b) => {
+        const quotaA = quotas && quotas[a.id] ? quotas[a.id] : 1;
+        const quotaB = quotas && quotas[b.id] ? quotas[b.id] : 1;
+        return (assigned[a.id] / quotaA) - (assigned[b.id] / quotaB) || a.id.localeCompare(b.id);
+    });
     return sources.length ? sources[0].id : null;
 }
 
 function requiredHaulers(room) {
     if (!Memory.colony.logistics) Memory.colony.logistics = {};
     const cache = Memory.colony.logistics.haulerTarget;
-    if (cache && cache.capacity === room.energyCapacityAvailable && Game.time - cache.tick < 1000) {
+    if (cache && cache.bySource && cache.capacity === room.energyCapacityAvailable && Game.time - cache.tick < 1000) {
         return cache.value;
     }
     const spawn = Game.spawns[CONFIG.spawnName];
@@ -91,17 +98,21 @@ function requiredHaulers(room) {
     const body = getBody("hauler", room.energyCapacityAvailable, false);
     const carryCapacity = body.filter(part => part === CARRY).length * CARRY_CAPACITY;
     let required = 0;
+    const bySource = {};
     for (const source of room.find(FIND_SOURCES)) {
         const distance = room.findPath(source.pos, spawn.pos, {
             ignoreCreeps: true, swampCost: 2, maxRooms: 1
         }).length;
-        required += Math.max(1, Math.ceil((distance * 2 * SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME) / carryCapacity));
+        const sourceTarget = Math.max(1, Math.ceil((distance * 2 * SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME) / carryCapacity));
+        bySource[source.id] = sourceTarget;
+        required += sourceTarget;
     }
     const value = Math.min(6, required);
     Memory.colony.logistics.haulerTarget = {
         capacity: room.energyCapacityAvailable,
         tick: Game.time,
-        value
+        value,
+        bySource
     };
     return value;
 }
